@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI News Summarizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for appearance */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+        
+        /* Loading Spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4f46e5; /* Indigo */
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .key-point-list li {
+            position: relative;
+            padding-left: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .key-point-list li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: #4f46e5; /* Indigo */
+            font-weight: bold;
+        }
+        .history-item {
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .history-item:hover {
+            background-color: #f0f4ff; /* Light indigo hover */
+            border-color: #c7d2fe;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <!-- Main Application Container -->
+    <div id="app" class="max-w-4xl mx-auto">
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-6 text-center">AI News Summarizer</h1>
+        <p class="text-center text-gray-600 mb-8">Paste the text of a news article or document below, select your target language, and click 'Summarize'.</p>
+
+        <!-- Input Area -->
+        <div class="bg-white p-6 rounded-xl shadow-lg mb-6 border border-gray-100">
+            
+            <!-- Language Selection -->
+            <div class="mb-4 flex flex-col md:flex-row md:items-center justify-start space-y-2 md:space-y-0 md:space-x-4">
+                <label for="languageSelect" class="block text-lg font-medium text-gray-700">Target Language:</label>
+                <select id="languageSelect" class="p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition max-w-xs w-full md:w-auto shadow-sm">
+                    <option value="English">English</option>
+                    <option value="Hindi (हिन्दी)">Hindi (हिन्दी)</option>
+                    <option value="Bengali (বাংলা)">Bengali (বাংলা)</option>
+                </select>
+            </div>
+            
+            <label for="articleInput" class="block text-lg font-medium text-gray-700 mb-2 mt-4">Article Text to Summarize</label>
+            <textarea id="articleInput" rows="10" placeholder="Paste your article text here..." class="w-full p-4 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition"></textarea>
+            
+            <!-- Control Buttons -->
+            <div class="flex justify-center mt-4 space-x-4">
+                <button id="summarizeButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-200 flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Summarize Text
+                </button>
+                <button id="clearButton" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 px-6 rounded-lg shadow-lg transition duration-200 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    Clear All
+                </button>
+            </div>
+        </div>
+
+        <!-- Summary Output Area -->
+        <div id="summaryCard" class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hidden">
+            
+            <div id="summaryLoader" class="flex justify-start items-center py-4 hidden">
+                <div class="loader"></div>
+                <p class="ml-3 text-gray-500">Generating summary and key points...</p>
+            </div>
+            
+            <!-- Read Aloud Button (NEW) -->
+            <div class="flex justify-end mb-4">
+                <button id="readAloudButton" class="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-200 flex items-center disabled:opacity-50 disabled:cursor-not-allowed" onclick="window.readSummaryAloud()" disabled>
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l1.293-1.293A1 1 0 018 8.414V15.586a1 1 0 01-.293.707l-1.293 1.293z"></path></svg>
+                    Read Summary Aloud
+                </button>
+            </div>
+
+            <!-- Concise Summary Section -->
+            <h2 class="text-2xl font-bold mb-4 text-gray-900 flex items-center mt-2">
+                <svg class="w-6 h-6 mr-2 text-indigo-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm10 2a1 1 0 100 2h-4a1 1 0 100 2h4a1 1 0 100 2h-4a1 1 0 100 2h4a1 1 0 100 2H4V6h10z" clip-rule="evenodd"></path></svg>
+                Concise Summary
+            </h2>
+            <div id="summaryOutput" class="text-gray-700 leading-relaxed space-y-3 mb-6">
+                <!-- Summary paragraph will be displayed here -->
+            </div>
+
+            <!-- Key Points Section -->
+            <hr class="border-gray-200 mb-4" />
+            <h2 class="text-2xl font-bold mb-4 text-gray-900 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-indigo-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zm-3 7a1 1 0 011-1h10a1 1 0 010 2H5a1 1 0 01-1-1zm0 4a1 1 0 011-1h10a1 1 0 010 2H5a1 1 0 01-1-1z"></path></svg>
+                Key Takeaways
+            </h2>
+            <ul id="keyPointsOutput" class="text-gray-700 space-y-2 key-point-list">
+                <!-- Key points list will be displayed here -->
+            </ul>
+        </div>
+
+        <!-- History Panel -->
+        <div id="historyPanel" class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 mt-6">
+            <h2 class="text-2xl font-bold text-gray-900 flex items-center mb-4 cursor-pointer" onclick="window.toggleHistory()">
+                <svg class="w-6 h-6 mr-2 text-indigo-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M4 4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm10 2a1 1 0 100 2h-4a1 1 0 100 2h4a1 1 0 100 2h-4a1 1 0 100 2h4a1 1 0 100 2H4V6h10z"></path></svg>
+                History (<span id="historyCount">0</span> Summaries)
+                <span id="historyToggleIcon" class="ml-auto text-gray-500 transform transition duration-300 rotate-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </span>
+            </h2>
+            <div id="historyListContainer" class="max-h-96 overflow-y-auto space-y-2 pt-2 border-t border-gray-200" style="display: none;">
+                <p id="historyStatus" class="text-sm text-gray-500">Loading history...</p>
+                <ul id="historyList" class="space-y-2">
+                    <!-- History items will be inserted here -->
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Error/Status Message Area -->
+        <div id="statusMessage" class="mt-6 text-center text-red-600 font-medium hidden"></div>
+
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase variables
+        let db;
+        let auth;
+        let userId = '';
+        let isAuthReady = false;
+
+        // API Configuration
+        const API_KEY = ""; 
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+        const TTS_MODEL_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY}`;
+        const TTS_VOICE = "Kore"; // General purpose voice for all languages (model handles accent)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // Element references
+        const summarizeButton = document.getElementById('summarizeButton');
+        const clearButton = document.getElementById('clearButton');
+        const articleInput = document.getElementById('articleInput');
+        const summaryCard = document.getElementById('summaryCard');
+        const summaryOutput = document.getElementById('summaryOutput');
+        const keyPointsOutput = document.getElementById('keyPointsOutput');
+        const summaryLoader = document.getElementById('summaryLoader');
+        const statusMessage = document.getElementById('statusMessage');
+        const languageSelect = document.getElementById('languageSelect');
+        const readAloudButton = document.getElementById('readAloudButton'); 
+
+        const historyList = document.getElementById('historyList');
+        const historyListContainer = document.getElementById('historyListContainer');
+        const historyStatus = document.getElementById('historyStatus');
+        const historyToggleIcon = document.getElementById('historyToggleIcon');
+        const historyCount = document.getElementById('historyCount');
+
+        let isProcessing = false;
+
+        /**
+         * Toggles the visibility of the history panel.
+         */
+        window.toggleHistory = () => {
+            const isHidden = historyListContainer.style.display === 'none';
+            historyListContainer.style.display = isHidden ? 'block' : 'none';
+            historyToggleIcon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+
+        /**
+         * Utility to display status messages (errors/loading)
+         */
+        function setStatus(message, type = 'error') {
+            statusMessage.textContent = message;
+            statusMessage.classList.remove('hidden', 'text-red-600', 'text-blue-600', 'text-green-600');
+
+            if (type === 'error') {
+                statusMessage.classList.add('text-red-600');
+            } else if (type === 'loading') {
+                statusMessage.classList.add('text-blue-600');
+            } else if (type === 'success') {
+                statusMessage.classList.add('text-green-600');
+            }
+            if (!message) {
+                statusMessage.classList.add('hidden');
+            } else {
+                statusMessage.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Simple exponential backoff for retrying API calls.
+         */
+        async function fetchWithRetry(fn, retries = 0) {
+            try {
+                return await fn();
+            } catch (error) {
+                if (retries < 3) {
+                    const delay = Math.pow(2, retries) * 1000;
+                    console.error(`[API ERROR] Attempt ${retries + 1} failed. Retrying in ${delay / 1000}s.`, error.message);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return fetchWithRetry(fn, retries + 1);
+                } else {
+                    console.error(`[API ERROR] Final attempt failed after 3 retries.`, error.message);
+                    throw error;
+                }
+            }
+        }
+
+        /**
+         * Clears the input field, output, and status messages.
+         */
+        function clearAll() {
+            articleInput.value = '';
+            summaryCard.classList.add('hidden');
+            summaryOutput.innerHTML = '';
+            keyPointsOutput.innerHTML = '';
+            setStatus('');
+            summarizeButton.disabled = false;
+            readAloudButton.disabled = true; // Disable read aloud button
+            // Restore button SVG and text if it was showing a loader
+            if (summarizeButton.querySelector('.loader')) {
+                 summarizeButton.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>Summarize Text`;
+            }
+            isProcessing = false;
+        }
+
+        /**
+         * Saves the summary result to Firestore.
+         */
+        async function saveSummary(originalText, summary, keyPoints) {
+            if (!db || !userId) {
+                console.error("Firestore not initialized or user not authenticated. Cannot save summary.");
+                return;
+            }
+
+            const title = originalText.substring(0, 100).trim() + (originalText.length > 100 ? '...' : '');
+
+            try {
+                const summariesCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/summaries`);
+                await addDoc(summariesCollectionRef, {
+                    timestamp: serverTimestamp(),
+                    title: title,
+                    originalText: originalText,
+                    summary: summary,
+                    keyPoints: keyPoints,
+                    language: languageSelect.value // Save selected language for history
+                });
+                console.log("Summary saved to Firestore.");
+            } catch (e) {
+                console.error("Error saving document: ", e);
+            }
+        }
+
+        /**
+         * Displays a specific saved summary.
+         */
+        function displaySavedSummary(data) {
+            clearAll(); // Clear previous content
+
+            // 1. Fill the input with the original text
+            articleInput.value = data.originalText;
+            
+            // 2. Set the language selection (if data includes it)
+            if (data.language) {
+                languageSelect.value = data.language;
+            } else {
+                languageSelect.value = 'English'; // Default if history item is old
+            }
+
+            // 3. Display the summary and key points
+            summaryOutput.innerHTML = `<p>${data.summary.replace(/\n/g, '<br><br>')}</p>`;
+            keyPointsOutput.innerHTML = data.keyPoints.map(point => 
+                `<li>${point}</li>`
+            ).join('');
+            
+            summaryCard.classList.remove('hidden');
+            readAloudButton.disabled = false; // Enable read aloud button
+            setStatus("History item loaded successfully.", 'success');
+        }
+
+
+        /**
+         * Sets up the real-time listener for the user's history.
+         */
+        function loadHistory() {
+            if (!db || !userId) {
+                historyStatus.textContent = "Log in required to load history.";
+                return;
+            }
+
+            const summariesCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/summaries`);
+            // Note: Cannot use orderBy() here due to environment constraints. Fetch all and sort locally.
+            const q = query(summariesCollectionRef); 
+
+            onSnapshot(q, (snapshot) => {
+                const historyData = [];
+                snapshot.forEach((doc) => {
+                    historyData.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Sort locally by timestamp (newest first)
+                historyData.sort((a, b) => {
+                    // Convert Firebase Timestamp to milliseconds for comparison
+                    const timeA = a.timestamp?.toMillis() || 0;
+                    const timeB = b.timestamp?.toMillis() || 0;
+                    return timeB - timeA;
+                });
+
+                historyList.innerHTML = '';
+                historyCount.textContent = historyData.length;
+
+                if (historyData.length === 0) {
+                    historyStatus.textContent = "No summaries saved yet.";
+                } else {
+                    historyStatus.textContent = "Click an item to view the summary.";
+                }
+
+                historyData.forEach(item => {
+                    const date = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleTimeString() : 'N/A';
+                    
+                    const listItem = document.createElement('li');
+                    listItem.className = 'history-item bg-gray-50 text-gray-800 text-sm hover:bg-indigo-50 transition';
+                    listItem.innerHTML = `<span class="font-semibold">${date}:</span> ${item.title}`;
+                    
+                    // Attach click handler to load the content
+                    listItem.onclick = () => displaySavedSummary(item);
+
+                    historyList.appendChild(listItem);
+                });
+            }, (error) => {
+                console.error("Error loading history: ", error);
+                historyStatus.textContent = `Error loading history: ${error.message}`;
+            });
+        }
+
+
+        /**
+         * Initializes Firebase and authenticates the user.
+         */
+        async function setupFirebase() {
+            try {
+                // setLogLevel('Debug');
+                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        console.log("Firebase initialized and user authenticated:", userId);
+                        // Start loading history once authenticated
+                        loadHistory();
+                    } else {
+                        userId = '';
+                        isAuthReady = true;
+                        console.warn("Firebase initialized, but user is unauthenticated or signed out.");
+                        historyStatus.textContent = "Sign in to use history feature.";
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase setup failed:", error);
+                historyStatus.textContent = "Failed to initialize history database.";
+            }
+        }
+
+        // --- TTS Utility Functions ---
+
+        /**
+         * Converts a base64 encoded string to an ArrayBuffer.
+         */
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+        
+        /**
+         * Converts raw 16-bit signed PCM data into a WAV Blob.
+         */
+        function pcmToWav(pcm16, sampleRate) {
+            const numChannels = 1;
+            const bytesPerSample = 2; // 16-bit PCM
+        
+            const wavBuffer = new ArrayBuffer(44 + pcm16.length * bytesPerSample);
+            const view = new DataView(wavBuffer);
+        
+            // RIFF chunk descriptor
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + pcm16.length * bytesPerSample, true);
+            writeString(view, 8, 'WAVE');
+        
+            // FMT sub-chunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); // Sub-chunk size
+            view.setUint16(20, 1, true); // Audio format (1 for PCM)
+            view.setUint16(22, numChannels, true); // Number of channels
+            view.setUint32(24, sampleRate, true); // Sample rate
+            view.setUint32(28, sampleRate * numChannels * bytesPerSample, true); // Byte rate
+            view.setUint16(32, numChannels * bytesPerSample, true); // Block align
+            view.setUint16(34, bytesPerSample * 8, true); // Bits per sample
+        
+            // Data sub-chunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, pcm16.length * bytesPerSample, true);
+        
+            // Write PCM data
+            let offset = 44;
+            for (let i = 0; i < pcm16.length; i++) {
+                view.setInt16(offset, pcm16[i], true);
+                offset += bytesPerSample;
+            }
+        
+            return new Blob([view], { type: 'audio/wav' });
+        }
+        
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        /**
+         * Initiates the Text-to-Speech API call and plays the audio.
+         */
+        async function readAloud(textToRead, language) {
+            const originalText = readAloudButton.innerHTML;
+            
+            readAloudButton.disabled = true;
+            readAloudButton.innerHTML = `<div class="loader w-5 h-5 mr-2 border-white border-t-2"></div> Reading...`;
+            setStatus(`Synthesizing speech in ${language}...`, 'loading');
+
+            // Instruct the model to read the text naturally in the selected language.
+            const prompt = `Read the following text naturally in ${language}: \n\n${textToRead}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: TTS_VOICE }
+                        }
+                    }
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+
+            try {
+                const response = await fetchWithRetry(async () => {
+                    const res = await fetch(TTS_MODEL_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                    return res.json();
+                });
+
+                // --- START DIAGNOSTIC CHANGE ---
+                console.log("TTS Model Response received:", response);
+                // --- END DIAGNOSTIC CHANGE ---
+
+                const candidate = response.candidates?.[0];
+                const part = candidate?.content?.parts?.[0];
+                const audioData = part?.inlineData?.data;
+                const mimeType = part?.inlineData?.mimeType;
+
+                if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                    const match = mimeType.match(/rate=(\d+)/);
+                    // The API returns L16 (16-bit PCM). Assume 24000Hz if rate is not explicit.
+                    const sampleRate = match ? parseInt(match[1], 10) : 24000; 
+
+                    const pcmData = base64ToArrayBuffer(audioData);
+                    const pcm16 = new Int16Array(pcmData);
+                    const wavBlob = pcmToWav(pcm16, sampleRate);
+                    const audioUrl = URL.createObjectURL(wavBlob);
+                    
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+
+                    audio.onended = () => {
+                        setStatus(`Playback finished.`, 'success');
+                        readAloudButton.innerHTML = originalText;
+                        readAloudButton.disabled = false;
+                    };
+                    audio.onerror = (e) => {
+                        setStatus(`Audio playback failed. Check browser console for details.`, 'error');
+                        readAloudButton.innerHTML = originalText;
+                        readAloudButton.disabled = false;
+                        console.error("Audio playback error:", e);
+                    };
+
+                    setStatus(`Playing audio in ${language}...`, 'loading');
+
+                } else {
+                    // Check if the response includes a 'safetyRating' or 'promptFeedback' indicating content was blocked.
+                    const blockReason = response.promptFeedback?.blockReason || candidate?.safetyRatings?.[0]?.probability;
+                    if (blockReason) {
+                        throw new Error(`TTS failed due to safety settings. Block reason/rating: ${blockReason}`);
+                    }
+                    throw new Error("Invalid or missing audio data from API.");
+                }
+            } catch (error) {
+                console.error("TTS Error:", error);
+                setStatus(`Failed to generate speech: ${error.message}. Please try again.`, 'error');
+                readAloudButton.innerHTML = originalText;
+                readAloudButton.disabled = false;
+            } 
+        }
+
+        /**
+         * Global function attached to the Read Aloud button.
+         */
+        window.readSummaryAloud = () => {
+            try {
+                const summaryText = summaryOutput.textContent;
+                const keyPointsText = keyPointsOutput.textContent;
+                
+                // Combine the text with clear separators for better reading flow
+                const combinedText = `Summary: ${summaryText}. The key points are: ${keyPointsText.replace(/\s+/g, ' ').trim()}`;
+                
+                const language = languageSelect.value;
+                
+                if (combinedText.length < 50) {
+                     setStatus("Please generate a summary first before reading aloud. The text is too short.", 'error');
+                     return;
+                }
+
+                readAloud(combinedText, language);
+            } catch (e) {
+                console.error("Error in readSummaryAloud wrapper:", e);
+                setStatus("An unexpected error occurred during audio initiation. Check console.", 'error');
+                readAloudButton.disabled = false;
+            }
+        }
+
+        /**
+         * Generates a concise summary and key points of the provided text.
+         */
+        async function summarizeArticle() {
+            const textToSummarize = articleInput.value.trim();
+
+            if (!textToSummarize) {
+                setStatus("Please paste a news article or document text into the box.", 'error');
+                summaryCard.classList.add('hidden');
+                return;
+            }
+
+            if (isProcessing) return;
+            isProcessing = true;
+
+            const buttonText = summarizeButton.innerHTML;
+            summarizeButton.disabled = true;
+            readAloudButton.disabled = true; // Disable TTS while generating
+            summarizeButton.innerHTML = `<div class="loader w-5 h-5 mr-2 border-white border-t-2"></div> Summarizing...`;
+
+            summaryCard.classList.remove('hidden');
+            summaryOutput.innerHTML = '';
+            keyPointsOutput.innerHTML = ''; 
+            summaryLoader.classList.remove('hidden');
+            setStatus("Generating summary and key points...", 'loading');
+
+            // --- LANGUAGE LOGIC ---
+            const selectedLanguage = languageSelect.value;
+            const languageInstruction = selectedLanguage !== 'English' 
+                ? ` and ensure all output (summary and key points) is strictly in ${selectedLanguage}.` 
+                : ` The output must be in English.`;
+
+            const systemPrompt = "You are a world-class summarization AI. Your task is to analyze the provided text and deliver a concise, single-paragraph summary and a list of 3 to 5 key takeaways in the specified JSON format. Be factual and neutral." + languageInstruction;
+            const userQuery = `Summarize the following text and list its key points: "${textToSummarize}"`;
+            // --- END LANGUAGE LOGIC ---
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "summary": { "type": "STRING", "description": "The concise, single-paragraph summary of the text." },
+                            "keyPoints": {
+                                "type": "ARRAY",
+                                "description": "A list of 3 to 5 crucial bullet points (strings) that represent the main takeaways.",
+                                "items": { "type": "STRING" }
+                            }
+                        },
+                        required: ["summary", "keyPoints"]
+                    }
+                }
+            };
+
+            try {
+                const response = await fetchWithRetry(async () => {
+                    const res = await fetch(GEMINI_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!res.ok) {
+                        if (res.status === 401) {
+                            console.error("DIAGNOSTIC: 401 Unauthorized. This error means the API key is invalid or missing.");
+                        }
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.json();
+                });
+
+                const jsonText = response.candidates?.[0]?.content?.parts?.[0]?.text;
+                let data = null;
+
+                try {
+                    data = JSON.parse(jsonText);
+                } catch (e) {
+                    console.error("Failed to parse JSON response:", e, jsonText);
+                    throw new Error("Invalid JSON response from model.");
+                }
+
+                if (data && data.summary && Array.isArray(data.keyPoints)) {
+                    // Render Summary
+                    summaryOutput.innerHTML = `<p>${data.summary.replace(/\n/g, '<br><br>')}</p>`;
+                    
+                    // Render Key Points
+                    keyPointsOutput.innerHTML = data.keyPoints.map(point => 
+                        `<li>${point}</li>`
+                    ).join('');
+
+                    setStatus(`Summary and key points generated successfully in ${selectedLanguage}! Saving to history...`, 'success');
+                    readAloudButton.disabled = false; // Enable TTS button on success
+                    
+                    // Save to history on success
+                    saveSummary(textToSummarize, data.summary, data.keyPoints);
+
+                } else {
+                    throw new Error("Missing required fields (summary or keyPoints) in model response.");
+                }
+
+            } catch (error) {
+                console.error("Error generating summary:", error);
+                
+                let fallbackSummary = `<p class="text-red-500">Sorry, a network or API error occurred while generating the summary. Check the console for details.</p>`;
+                let fallbackPoints = `<li>Error retrieving key points.</li>`;
+                
+                // --- MOCK SUMMARY FALLBACK LOGIC for 401 Errors ---
+                if (error.message && error.message.includes('401')) {
+                    fallbackSummary = `<p>⚠️ **MOCK SUMMARY (Key Error):** The real summary failed to generate due to an environmental API key error (401). Here is a mock response to show the dual-output functionality in the requested language (${selectedLanguage}):</p>`;
+                    fallbackPoints = `
+                        <li><span class="font-bold">Error Check:</span> The application detected an API key failure (401 Unauthorized).</li>
+                        <li><span class="font-bold">Dual Output:</span> This mock demonstrates that the AI is set up to return both a paragraph and a list.</li>
+                        <li><span class="font-bold">Next Step:</span> Ensure the environment successfully injects the necessary API key.</li>
+                    `;
+                    setStatus(`Note: API access failed (401). Displaying mock summary in ${selectedLanguage}.`, 'error');
+                    readAloudButton.disabled = false; // Enable TTS button even for mock
+
+                } else {
+                    setStatus("Failed to generate summary. Please check the console for details or try again.", 'error');
+                }
+                
+                summaryOutput.innerHTML = fallbackSummary;
+                keyPointsOutput.innerHTML = fallbackPoints;
+
+            } finally {
+                summaryLoader.classList.add('hidden');
+                summarizeButton.innerHTML = buttonText;
+                summarizeButton.disabled = false;
+                isProcessing = false;
+            }
+        }
+
+        // Initialize on window load
+        window.onload = () => {
+            setupFirebase();
+            summarizeButton.addEventListener('click', summarizeArticle);
+            clearButton.addEventListener('click', clearAll);
+        };
+
+    </script>
+</body>
+</html>
